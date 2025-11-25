@@ -6,11 +6,19 @@ import uvicorn
 import yfinance as yf
 import time
 from datetime import datetime
+import csv
+import os
+import sys
 
 app = FastAPI()
 
+# Flush logs immediately for Railway visibility
+def log_print(msg):
+    print(msg)
+    sys.stdout.flush()
+
 # ===========================================================
-# CORS (TradingView → Railway fix)
+# CORS
 # ===========================================================
 app.add_middleware(
     CORSMiddleware,
@@ -19,13 +27,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ===========================================================
-# ERROR HANDLER (TradingView invalid JSON fix)
-# ===========================================================
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    print("Invalid JSON received:", exc)
+    log_print("Invalid JSON received:")
+    log_print(str(exc))
     return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+
+# ===========================================================
+# CSV LOGGING
+# ===========================================================
+CSV_FILE = "trades.csv"
+
+if not os.path.exists(CSV_FILE):
+    with open(CSV_FILE, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "timestamp", "action", "symbol", "price", "entry_price",
+            "pnl", "cash", "equity", "fcd_score", "confidence"
+        ])
+    log_print("Created new trades.csv")
+
+
+def log_trade(action, symbol, price, entry_price, pnl, cash, equity, fcd_score, confidence):
+    with open(CSV_FILE, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            action,
+            symbol,
+            price,
+            entry_price,
+            pnl,
+            cash,
+            equity,
+            fcd_score,
+            confidence
+        ])
+
+    # Print to Railway logs
+    log_print("\n=== TRADE EXECUTED ===")
+    log_print(f"Action: {action.upper()}")
+    log_print(f"Symbol: {symbol}")
+    log_print(f"Price: ${price}")
+    log_print(f"Entry Price: ${entry_price}")
+    log_print(f"P/L: {pnl}")
+    log_print(f"Cash: {cash}")
+    log_print(f"Equity: {equity}")
+    log_print(f"FCD Score: {fcd_score}")
+    log_print(f"Confidence: {confidence * 100:.2f}%")
+    log_print("=====================================")
 
 
 # ===========================================================
@@ -39,20 +90,21 @@ class PaperAccount:
         self.equity = 10000
         self.logs = []
 
-    def buy(self, price):
+    def buy(self, symbol, price, fcd_score, confidence):
         if price is not None and self.position == 0:
             self.position = 1
             self.entry_price = price
-            self.logs.append(f"[{datetime.now()}] BUY at ${price}")
-            print(self.logs[-1])
 
-    def sell(self, price):
+            log_trade("buy", symbol, price, price, 0, self.cash, self.cash, fcd_score, confidence)
+
+    def sell(self, symbol, price, fcd_score, confidence):
         if price is not None and self.position == 1:
             pnl = price - self.entry_price
             self.cash += pnl
+
+            log_trade("sell", symbol, price, self.entry_price, pnl, self.cash, self.cash, fcd_score, confidence)
+
             self.position = 0
-            self.logs.append(f"[{datetime.now()}] SELL at ${price} (P/L: {pnl})")
-            print(self.logs[-1])
 
     def status(self):
         return {
@@ -64,17 +116,18 @@ class PaperAccount:
 
 account = PaperAccount()
 
+
 # ===========================================================
-# HANDLE TRADINGVIEW WEBHOOK
+# WEBHOOK ENDPOINT
 # ===========================================================
 @app.post("/webhook")
 async def webhook(request: Request):
-    print("\n=== Incoming request to /webhook ===")
+    log_print("\n\n========== Webhook Received ==========")
 
     try:
         payload = await request.json()
     except Exception as e:
-        print("JSON parse error:", e)
+        log_print(f"Failed to parse JSON: {e}")
         return {"error": "Invalid JSON"}
 
     symbol = payload.get("symbol", "SPY")
@@ -82,31 +135,39 @@ async def webhook(request: Request):
     fcd_score = payload.get("fcd_score", 0.0)
     confidence = payload.get("confidence", 0.0)
 
-    print("Payload received:", payload)
+    log_print(f"Time: {datetime.now()}")
+    log_print(f"Symbol: {symbol}")
+    log_print(f"Signal: {signal}")
+    log_print(f"FCD Score: {fcd_score}")
+    log_print(f"Confidence: {confidence * 100:.2f}%")
 
-    # Fetch 15m SPY data (safe)
+    # =======================================================
+    # Fetch yfinance 15m data
+    # =======================================================
     try:
         df = yf.download(symbol, interval="15m", period="1d", threads=False)
         if df is None or len(df) == 0:
-            print("No data from yfinance.")
             last_price = None
         else:
             last_price = float(df["Close"].iloc[-1])
     except Exception as e:
-        print("yfinance error:", e)
+        log_print(f"YFinance Error: {e}")
         last_price = None
 
-    print(f"Last price for {symbol}: {last_price}")
+    log_print(f"Last SPY 15m Price: {last_price}")
 
-    # Trading logic
+    # Execute logic
     if signal == "buy":
-        account.buy(last_price)
+        account.buy(symbol, last_price, fcd_score, confidence)
     elif signal == "sell":
-        account.sell(last_price)
+        account.sell(symbol, last_price, fcd_score, confidence)
     else:
-        print("Flat — no trade executed.")
+        log_print("No trade executed (flat signal).")
+
+    log_print("========================================\n")
 
     return {
+        "status": "ok",
         "received": payload,
         "last_price": last_price,
         "account": account.status()
@@ -118,7 +179,7 @@ async def webhook(request: Request):
 # ===========================================================
 @app.get("/")
 def home():
-    return {"status": "running", "time": time.time()}
+    return {"status": "running"}
 
 
 if __name__ == "__main__":
