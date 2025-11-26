@@ -37,11 +37,11 @@ class TradingViewBar(BaseModel):
     """TradingView webhook payload schema"""
     symbol: str = Field(..., description="Trading symbol (e.g., SPY, MGC=F)")
     timestamp: Union[int, str] = Field(..., description="Unix timestamp in milliseconds or ISO string")
-    open: float = Field(..., gt=0)
-    high: float = Field(..., gt=0)
-    low: float = Field(..., gt=0)
-    close: float = Field(..., gt=0)
-    volume: float = Field(..., ge=0)
+    open: Union[float, str] = Field(..., description="Open price")
+    high: Union[float, str] = Field(..., description="High price")
+    low: Union[float, str] = Field(..., description="Low price")
+    close: Union[float, str] = Field(..., description="Close price")
+    volume: Union[float, str] = Field(..., description="Volume")
     
     @field_validator('timestamp')
     @classmethod
@@ -52,6 +52,14 @@ class TradingViewBar(BaseModel):
             from dateutil import parser
             dt = parser.parse(v)
             return int(dt.timestamp() * 1000)
+        return v
+    
+    @field_validator('open', 'high', 'low', 'close', 'volume')
+    @classmethod
+    def parse_float(cls, v):
+        """Convert string numbers to float"""
+        if isinstance(v, str):
+            return float(v)
         return v
 
 
