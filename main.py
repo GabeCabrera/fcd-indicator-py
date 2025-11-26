@@ -11,11 +11,11 @@ Entry: uvicorn main:app --host 0.0.0.0 --port 8000
 import sys
 import os
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 import pandas as pd
 import numpy as np
 import json
@@ -36,12 +36,23 @@ bar_cache: Dict[str, list] = {}
 class TradingViewBar(BaseModel):
     """TradingView webhook payload schema"""
     symbol: str = Field(..., description="Trading symbol (e.g., SPY, MGC=F)")
-    timestamp: int = Field(..., description="Unix timestamp in milliseconds")
+    timestamp: Union[int, str] = Field(..., description="Unix timestamp in milliseconds or ISO string")
     open: float = Field(..., gt=0)
     high: float = Field(..., gt=0)
     low: float = Field(..., gt=0)
     close: float = Field(..., gt=0)
     volume: float = Field(..., ge=0)
+    
+    @field_validator('timestamp')
+    @classmethod
+    def parse_timestamp(cls, v):
+        """Convert timestamp to int milliseconds"""
+        if isinstance(v, str):
+            # Parse ISO format: "2025-11-26T04:27:02Z"
+            from dateutil import parser
+            dt = parser.parse(v)
+            return int(dt.timestamp() * 1000)
+        return v
 
 
 @app.on_event("startup")

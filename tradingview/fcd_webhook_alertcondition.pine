@@ -25,7 +25,7 @@ if barstate.isconfirmed
 // ============================================================================
 alertcondition(barstate.isconfirmed, 
                title="FCD Webhook", 
-               message='{"symbol":"{{ticker}}","timestamp":{{timenow}},"open":{{open}},"high":{{high}},"low":{{low}},"close":{{close}},"volume":{{volume}}}')
+               message='{"symbol":"{{ticker}}","timestamp":{{time}},"open":{{open}},"high":{{high}},"low":{{low}},"close":{{close}},"volume":{{volume}}}')
 
 // ============================================================================
 // VISUAL DISPLAY
