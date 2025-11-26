@@ -1,0 +1,1 @@
+"""FCD Indicator Module"""

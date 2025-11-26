@@ -1,0 +1,21 @@
+# FCD Cloud Trading Engine - Dependencies
+# Python 3.11+
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.6.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Scientific Computing (for FCD model)
+scipy>=1.11.0
+
+# Market Data (for FCD calculations)
+yfinance==0.2.32
+
+# Utilities
+python-dateutil==2.8.2
+requests==2.31.0  # For testing only (not needed in production)
