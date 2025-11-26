@@ -6,10 +6,9 @@ indicator("FCD Signal with Phone Alerts", overlay=true)
 // ============================================================================
 webhook_url   = input.string("https://fcd-indicator-py-production.up.railway.app/webhook", "Python Server URL")
 ticker_symbol = input.string("SPY", "Ticker Symbol")
-enable_alerts = input.bool(true, "Enable Phone Alerts")
 
 // ============================================================================
-// BUILD WEBHOOK PAYLOAD WITH ALERT CALLBACK
+// BUILD WEBHOOK PAYLOAD (OHLCV DATA)
 // ============================================================================
 build_payload() =>
     string json = "{"
@@ -20,11 +19,6 @@ build_payload() =>
     json += '"low":'         + str.tostring(low) + ','
     json += '"close":'       + str.tostring(close) + ','
     json += '"volume":'      + str.tostring(volume)
-    
-    // Add alert webhook URL if enabled
-    if enable_alerts
-        json += ',"alert_webhook":"https://alerts.tradingview.com/webhook/YOUR_ALERT_KEY_HERE"'
-    
     json += "}"
     json
 
@@ -69,12 +63,8 @@ if barstate.islast
                        local_signal == "BEARISH" ? color.red : color.gray
     table.cell(t, 1, 3, local_signal, text_color=trend_color)
     
-    table.cell(t, 0, 4, "Phone Alerts", text_color=color.white)
-    table.cell(t, 1, 4, enable_alerts ? "ON" : "OFF", 
-               text_color=enable_alerts ? color.green : color.gray)
-    
-    table.cell(t, 0, 5, "Status", text_color=color.white)
-    table.cell(t, 1, 5, "Sending...", text_color=color.aqua)
+    table.cell(t, 0, 4, "Status", text_color=color.white)
+    table.cell(t, 1, 4, "Sending...", text_color=color.aqua)
 
 // ============================================================================
 // VISUAL MARKERS

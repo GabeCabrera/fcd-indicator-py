@@ -18,7 +18,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
-import requests
 
 # Import FCD components
 from fcd.signal.fcd_signal_generator import FCDSignalGenerator
@@ -42,7 +41,6 @@ class TradingViewBar(BaseModel):
     low: float = Field(..., gt=0)
     close: float = Field(..., gt=0)
     volume: float = Field(..., ge=0)
-    alert_webhook: Optional[str] = Field(None, description="Optional callback URL for phone alerts")
 
 
 @app.on_event("startup")
@@ -266,45 +264,6 @@ async def webhook(bar: TradingViewBar):
         
         print("\n" + "─"*60 + "\n")
         sys.stdout.flush()
-        
-        # Send phone alert if webhook URL provided
-        if bar.alert_webhook:
-            try:
-                # Build human-readable alert message
-                alert_msg = f"🚀 FCD SIGNAL\n"
-                alert_msg += f"━━━━━━━━━━━━━━━━━━━━\n"
-                alert_msg += f"SYMBOL: {bar.symbol}\n"
-                alert_msg += f"SIGNAL: {signal}\n"
-                alert_msg += f"PRICE: ${bar.close:.2f}\n"
-                
-                if metadata:
-                    alert_msg += f"FCD: {metadata.get('fcd_value', 0):.4f}\n"
-                    alert_msg += f"SCORE: {metadata.get('becoming_score', 0):.4f}\n"
-                
-                if trade_result:
-                    if 'pnl' in trade_result:
-                        pnl_pct = (trade_result['pnl'] / trade_result['entry_price']) * 100
-                        alert_msg += f"P&L: ${trade_result['pnl']:.2f} ({pnl_pct:+.2f}%)\n"
-                    alert_msg += f"CASH: ${trade_result['cash']:.2f}\n"
-                
-                alert_msg += f"TIME: {datetime.fromtimestamp(bar.timestamp/1000).strftime('%H:%M:%S')}"
-                
-                # Send webhook to TradingView for phone alert
-                response = requests.post(
-                    bar.alert_webhook,
-                    json={"message": alert_msg},
-                    timeout=5
-                )
-                
-                if response.status_code == 200:
-                    print("📱 Phone alert sent successfully")
-                else:
-                    print(f"⚠️  Alert webhook failed: {response.status_code}")
-                    
-            except Exception as e:
-                print(f"⚠️  Failed to send phone alert: {str(e)}")
-            
-            sys.stdout.flush()
         
         # Return response
         return {

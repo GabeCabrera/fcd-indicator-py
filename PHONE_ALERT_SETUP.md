@@ -2,10 +2,12 @@
 
 ## Overview
 
-Your FCD system now sends **TWO types of alerts**:
+Your FCD system works like this:
 
-1. **Data Webhook** → Sends bar data to Python server for FCD calculation
-2. **Phone Alert** → Receives BUY/SELL/HOLD signal back from Python and sends to your phone
+1. **TradingView sends bar data** → Railway server calculates FCD signal
+2. **TradingView sends you notification** → You get BUY/SELL/HOLD alert on phone
+
+**Important**: Phone alerts come from TradingView's native notification system, not a callback webhook.
 
 ---
 
@@ -15,7 +17,7 @@ Your FCD system now sends **TWO types of alerts**:
 
 1. **Add indicator** `fcd_signal_with_alerts.pine` to your chart
 2. Click **⏰ Alert** button (top toolbar)
-3. **Condition**: Select "FCD Signal with Phone Alerts"
+3. **Condition**: Select **"Any alert() function call"**
 4. **Settings**:
    - Trigger: **Once Per Bar Close**
    - Expiration: **Open-ended**
@@ -47,23 +49,38 @@ https://fcd-indicator-py-production.up.railway.app/webhook
 
 ## 📊 What You'll Receive on Your Phone
 
-### Format:
+### Notification Format:
+The TradingView app will show:
 ```
-🚀 FCD SIGNAL
-━━━━━━━━━━━━━━━━━━━━
-SYMBOL: MGC=F
-SIGNAL: LONG
-PRICE: $2043.50
-FCD: 0.1247
-SCORE: 0.1840
-CASH: $95,234.18
-TIME: 14:35:22
+FCD Signal with Phone Alerts
+SPY: Any alert() function call
 ```
 
-### Signal Types:
-- **LONG** = BUY signal (FCD > 0.1, position is FLAT)
-- **FLAT** = SELL signal (FCD < -0.1, position is LONG)
-- **HOLD** = No action (stay in current position)
+When you open it, you'll see the webhook was sent. To see the **actual BUY/SELL/HOLD signal**, check:
+
+1. **Railway Logs**: https://railway.app/dashboard (real-time)
+2. **Your trades.csv**: Download from Railway to see all signals
+
+### Railway Log Example:
+```
+📊 INCOMING WEBHOOK - 2025-11-25 14:35:22
+Symbol: MGC=F
+OHLCV: O=2043.50 H=2045.20 L=2042.80 C=2044.10
+
+🔬 FCD ANALYSIS
+Position: FLAT
+
+📊 FCD OUTPUT:
+  Signal: LONG
+  FCD Value: 0.1247
+  BecomingScore: 0.1840
+
+🟢 EXECUTING BUY ORDER
+💰 TRADE EXECUTED
+  Price: $2044.10
+  Shares: 46
+  Cash: $5,971.40
+```
 
 ---
 
@@ -72,14 +89,18 @@ TIME: 14:35:22
 ```
 TradingView Chart (bar closes)
     ↓
-Sends OHLCV data to Python server
+Sends OHLCV data to Railway server
     ↓
-Python calculates FCD signal
+Python calculates FCD signal (LONG/FLAT/HOLD)
     ↓
-Python sends response with BUY/SELL/HOLD
+Python executes paper trade
     ↓
-TradingView sends notification to your phone
+Python logs to Railway console + trades.csv
+    ↓
+TradingView sends you notification (webhook sent)
 ```
+
+**Note**: The notification confirms the webhook fired. The actual signal/trade details are in Railway logs.
 
 ---
 
@@ -136,7 +157,10 @@ curl -X POST https://fcd-indicator-py-production.up.railway.app/webhook \
 1. Check TradingView alert is **active** (green dot)
 2. Verify webhook URL is correct
 3. Check Railway logs for incoming requests
-4. Make sure mobile notifications are enabled in TradingView app
+4. Make sure notifications are enabled in TradingView app settings
+
+### "Want BUY/SELL in phone notification text"
+This requires TradingView Pro+ with custom alert messages. Current setup uses Railway logs for detailed signals. Alternative: Use TradingView's alert message customization (Pro feature) to include {{close}} or other data.
 
 ### "Getting data but no signal"
 1. Check Railway logs for FCD calculation errors
