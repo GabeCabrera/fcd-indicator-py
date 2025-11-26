@@ -1,0 +1,42 @@
+//@version=5
+indicator("FCD Webhook Alert", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+ticker_symbol = input.string("BTC", "Ticker Symbol")
+
+// ============================================================================
+// BUILD JSON MESSAGE
+// ============================================================================
+var string json_message = ""
+
+if barstate.isconfirmed
+    json_message := '{"symbol":"' + ticker_symbol + 
+                   '","timestamp":' + str.tostring(time) + 
+                   ',"open":' + str.tostring(open) + 
+                   ',"high":' + str.tostring(high) + 
+                   ',"low":' + str.tostring(low) + 
+                   ',"close":' + str.tostring(close) + 
+                   ',"volume":' + str.tostring(volume) + '}'
+
+// ============================================================================
+// ALERT CONDITION
+// ============================================================================
+alertcondition(barstate.isconfirmed, 
+               title="FCD Webhook", 
+               message='{"symbol":"{{ticker}}","timestamp":{{timenow}},"open":{{open}},"high":{{high}},"low":{{low}},"close":{{close}},"volume":{{volume}}}')
+
+// ============================================================================
+// VISUAL DISPLAY
+// ============================================================================
+var table t = table.new(position.top_right, 2, 2, bgcolor=color.new(color.black, 85), border_width=2)
+
+if barstate.islast
+    table.cell(t, 0, 0, "FCD Webhook", bgcolor=color.new(color.blue, 70), text_color=color.white)
+    table.cell(t, 1, 0, "Active", text_color=color.green)
+    
+    table.cell(t, 0, 1, "Symbol", text_color=color.white)
+    table.cell(t, 1, 1, ticker_symbol, text_color=color.yellow)
+
+plotchar(barstate.isconfirmed, "Bar Close", "●", location.belowbar, color.green, size=size.tiny)

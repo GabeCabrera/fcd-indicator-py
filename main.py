@@ -14,10 +14,11 @@ from datetime import datetime
 from typing import Dict, Optional
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field, ValidationError
 import pandas as pd
 import numpy as np
+import json
 
 # Import FCD components
 from fcd.signal.fcd_signal_generator import FCDSignalGenerator
@@ -153,7 +154,7 @@ async def stats():
 
 
 @app.post("/webhook")
-async def webhook(bar: TradingViewBar):
+async def webhook(request: Request):
     """
     Main webhook endpoint for TradingView alerts
     
@@ -164,10 +165,28 @@ async def webhook(bar: TradingViewBar):
     if not fcd_engine or not paper_trader:
         raise HTTPException(status_code=503, detail="Engine not initialized")
     
-    # Log incoming webhook
+    # Log raw request body for debugging
+    raw_body = await request.body()
     print("\n" + "─"*60)
     print(f"📊 INCOMING WEBHOOK - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("─"*60)
+    print(f"Raw body: {raw_body.decode('utf-8')}")
+    sys.stdout.flush()
+    
+    # Parse and validate
+    try:
+        body_json = await request.json()
+        bar = TradingViewBar(**body_json)
+    except ValidationError as e:
+        print(f"❌ Validation Error: {e}")
+        sys.stdout.flush()
+        raise HTTPException(status_code=422, detail=str(e))
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON Decode Error: {e}")
+        sys.stdout.flush()
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    
+    # Log parsed webhook
     print(f"Symbol: {bar.symbol}")
     print(f"Timestamp: {datetime.fromtimestamp(bar.timestamp/1000).strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"OHLCV: O={bar.open:.2f} H={bar.high:.2f} L={bar.low:.2f} C={bar.close:.2f} V={bar.volume:,.0f}")

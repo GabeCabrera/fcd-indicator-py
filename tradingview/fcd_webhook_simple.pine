@@ -1,0 +1,49 @@
+//@version=5
+indicator("FCD Webhook (Simplified)", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+ticker_symbol = input.string("BTC", "Ticker Symbol")
+test_mode     = input.bool(false, "Test Mode (Alert Every Bar)")
+
+// ============================================================================
+// BUILD WEBHOOK PAYLOAD
+// ============================================================================
+build_payload() =>
+    string json = "{"
+    json += '"symbol":"'     + ticker_symbol + '",'
+    json += '"timestamp":'   + str.tostring(time) + ','
+    json += '"open":'        + str.tostring(open) + ','
+    json += '"high":'        + str.tostring(high) + ','
+    json += '"low":'         + str.tostring(low) + ','
+    json += '"close":'       + str.tostring(close) + ','
+    json += '"volume":'      + str.tostring(volume)
+    json += "}"
+    json
+
+// ============================================================================
+// SEND ALERT
+// ============================================================================
+bool should_alert = test_mode ? true : barstate.isconfirmed
+
+if should_alert
+    string payload = build_payload()
+    alert(payload, alert.freq_once_per_bar_close)
+
+// ============================================================================
+// STATUS DISPLAY
+// ============================================================================
+var table t = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 85), border_width=2)
+
+if barstate.islast
+    table.cell(t, 0, 0, "FCD Webhook", bgcolor=color.new(color.blue, 70), text_color=color.white)
+    table.cell(t, 1, 0, "Active", text_color=color.green)
+    
+    table.cell(t, 0, 1, "Symbol", text_color=color.white)
+    table.cell(t, 1, 1, ticker_symbol, text_color=color.yellow)
+    
+    table.cell(t, 0, 2, "Mode", text_color=color.white)
+    table.cell(t, 1, 2, test_mode ? "TEST" : "LIVE", text_color=test_mode ? color.orange : color.green)
+
+plotchar(should_alert, "Webhook", "▲", location.belowbar, color.blue, size=size.tiny)
