@@ -1,0 +1,72 @@
+//@version=5
+indicator("FCD Signal Generator", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+webhook_url   = input.string("https://fcd-indicator-py-production.up.railway.app/webhook", "Webhook URL")
+ticker_symbol = input.string("SPY", "Ticker Symbol")
+
+// ============================================================================
+// BUILD WEBHOOK PAYLOAD (OHLCV DATA)
+// ============================================================================
+build_payload() =>
+    string json = "{"
+    json += '"symbol":"'     + ticker_symbol + '",'
+    json += '"timestamp":'   + str.tostring(time) + ','
+    json += '"open":'        + str.tostring(open) + ','
+    json += '"high":'        + str.tostring(high) + ','
+    json += '"low":'         + str.tostring(low) + ','
+    json += '"close":'       + str.tostring(close) + ','
+    json += '"volume":'      + str.tostring(volume)
+    json += "}"
+    json
+
+// ============================================================================
+// BUILD PHONE ALERT MESSAGE
+// ============================================================================
+build_phone_alert() =>
+    string msg = "🚀 FCD SIGNAL PROCESSING\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━\n"
+    msg += "SYMBOL: " + ticker_symbol + "\n"
+    msg += "PRICE: $" + str.tostring(close, "#.##") + "\n"
+    msg += "TIME: " + str.format("{0,date,short} {0,time,short}", time) + "\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━\n"
+    msg += "⏳ Calculating FCD signal...\n"
+    msg += "Check server logs for result"
+    msg
+
+// ============================================================================
+// SEND WEBHOOK + PHONE ALERT ON BAR CLOSE
+// ============================================================================
+if barstate.isconfirmed
+    // Send webhook to Python server (this is invisible)
+    string payload = build_payload()
+    alert(payload, alert.freq_once_per_bar_close)
+    
+    // Send phone alert (this will show on your phone)
+    string phone_msg = build_phone_alert()
+    alert(phone_msg, alert.freq_once_per_bar_close)
+
+// ============================================================================
+// STATUS TABLE
+// ============================================================================
+var table t = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 85), border_width=2)
+
+if barstate.islast
+    table.cell(t, 0, 0, "FCD Webhook", bgcolor=color.new(color.blue, 70), text_color=color.white)
+    table.cell(t, 1, 0, "Active", text_color=color.green)
+    
+    table.cell(t, 0, 1, "Symbol", text_color=color.white)
+    table.cell(t, 1, 1, ticker_symbol, text_color=color.yellow)
+    
+    table.cell(t, 0, 2, "Last Close", text_color=color.white)
+    table.cell(t, 1, 2, str.tostring(close, "#.##"), text_color=color.white)
+    
+    table.cell(t, 0, 3, "Status", text_color=color.white)
+    table.cell(t, 1, 3, "Monitoring", text_color=color.green)
+
+// ============================================================================
+// VISUAL MARKERS
+// ============================================================================
+plotchar(barstate.isconfirmed, "Bar Sent", "✓", location.abovebar, color.green, size=size.tiny)
