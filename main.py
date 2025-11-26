@@ -215,8 +215,18 @@ async def webhook(bar: TradingViewBar):
         print(f"\n📊 FCD OUTPUT:")
         if metadata:
             print(f"  Signal: {signal}")
-            print(f"  FCD Value: {metadata.get('fcd_value', 'N/A'):.4f}")
-            print(f"  BecomingScore: {metadata.get('becoming_score', 'N/A'):.4f}")
+            fcd_val = metadata.get('fcd_value', None)
+            if fcd_val is not None:
+                print(f"  FCD Value: {fcd_val:.4f}")
+            else:
+                print(f"  FCD Value: N/A")
+            
+            score = metadata.get('becoming_score', None)
+            if score is not None:
+                print(f"  BecomingScore: {score:.4f}")
+            else:
+                print(f"  BecomingScore: N/A")
+            
             print(f"  Confidence: {metadata.get('confidence', 'N/A')}")
             print(f"  Reason: {metadata.get('reason', 'N/A')}")
         else:
