@@ -116,7 +116,9 @@ async def root():
     return {
         "status": "online",
         "service": "FCD Cloud Trading Engine",
-        "version": "1.0.0",
+        "version": "1.0.1",
+        "commit": "283d01f",
+        "last_updated": "2025-11-25",
         "endpoints": {
             "webhook": "/webhook",
             "health": "/health",
