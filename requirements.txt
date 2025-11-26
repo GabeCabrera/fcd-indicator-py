@@ -12,6 +12,7 @@ numpy>=1.26.0
 
 # Scientific Computing (for FCD model)
 scipy>=1.11.0
+matplotlib>=3.7.0
 
 # Market Data (for FCD calculations)
 yfinance==0.2.32
