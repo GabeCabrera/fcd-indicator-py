@@ -41,12 +41,18 @@ class FCDIndicator:
                  tension_vol_alpha: float = 0.1,
                  mass_coeffs: Optional[Tuple[float, float, float, float]] = None,
                  asym_coeffs: Optional[Tuple[float, float, float]] = None,
-                 long_threshold: float = 0.1,
-                 short_threshold: float = 0.1,
+                 long_threshold: float = 0.01,
+                 short_threshold: float = 0.01,
                  trend_threshold: float = 0.0005,
                  vol_threshold: float = 1.0,
                  interval: Optional[str] = None,
-                 allow_shorts: bool = True):
+                 allow_shorts: bool = True,
+                 enable_path_var_gate: bool = True,
+                 enable_tension_gate: bool = True,
+                 enable_vol_gate: bool = True,
+                 enable_persistence_gate: bool = True,
+                 mc_distribution: str = "gaussian",
+                 mc_degrees_of_freedom: float = 3.0):
         """
         Initialize FCD indicator.
         
@@ -98,6 +104,10 @@ class FCDIndicator:
             Data interval label used for profile-aware gating.
         allow_shorts : bool
             Global flag controlling whether short signals are permitted.
+        mc_distribution : str
+            Monte Carlo noise distribution: "gaussian" or "student_t"
+        mc_degrees_of_freedom : float
+            Degrees of freedom for Student-t distribution (if mc_distribution="student_t")
         """
         # Single-timeframe FCD
         self.fcd = FCDState(
@@ -116,7 +126,9 @@ class FCDIndicator:
             mass_coeffs=mass_coeffs,
             asym_coeffs=asym_coeffs,
             trend_threshold=trend_threshold,
-            vol_threshold=vol_threshold
+            vol_threshold=vol_threshold,
+            mc_distribution=mc_distribution,
+            mc_degrees_of_freedom=mc_degrees_of_freedom
         )
         
         # Probabilistic predictor
@@ -128,6 +140,12 @@ class FCDIndicator:
         self.vol_window = 20
         self.low_vol_threshold = 0.005
         self.high_vol_threshold = 0.02
+        
+        # Gate enable/disable flags
+        self.enable_path_var_gate = enable_path_var_gate
+        self.enable_tension_gate = enable_tension_gate
+        self.enable_vol_gate = enable_vol_gate
+        self.enable_persistence_gate = enable_persistence_gate
         
         # Multi-scale system
         self.enable_multi_scale = enable_multi_scale
@@ -467,7 +485,7 @@ class FCDIndicator:
             short_component /= total
             chop_component /= total
 
-        if path_var is not None and len(self.signals_history) >= 5:
+        if self.enable_path_var_gate and path_var is not None and len(self.signals_history) >= 5:
             path_var_threshold = 0.020 if interval_label == "1d" else 0.06
             if path_var > path_var_threshold:
                 return {
@@ -492,7 +510,7 @@ class FCDIndicator:
         if vol_z is None:
             vol_z = 0.0
         vol_gate = 3.0 if interval_label == "1d" else 2.5
-        if vol_z > vol_gate:
+        if self.enable_vol_gate and vol_z > vol_gate:
             return {
                 'direction': 0,
                 'score': scaled_score,
@@ -515,7 +533,7 @@ class FCDIndicator:
         min_persistence = 2 if interval_label == "1d" else 3
         if persistence_history_len <= 1:
             min_persistence = 1
-        if persistence < min_persistence:
+        if self.enable_persistence_gate and persistence < min_persistence:
             return {
                 'direction': 0,
                 'score': scaled_score,
@@ -535,7 +553,7 @@ class FCDIndicator:
                 'phase3_gate': True
             }
 
-        if tension_norm > tension_gate:
+        if self.enable_tension_gate and tension_norm > tension_gate:
             return {
                 'direction': 0,
                 'score': scaled_score,

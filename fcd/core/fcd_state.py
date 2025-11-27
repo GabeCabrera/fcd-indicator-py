@@ -43,7 +43,9 @@ class FCDState:
                  tension_ema_alpha: float = 0.2,
                  trend_threshold: float = 0.0005,
                  vol_threshold: float = 1.0,
-                 momentum_weight: float = 0.2):
+                 momentum_weight: float = 0.2,
+                 mc_distribution: str = "gaussian",
+                 mc_degrees_of_freedom: float = 3.0):
         """
         Initialize FCD State system.
         
@@ -87,6 +89,10 @@ class FCDState:
             Threshold for trend_score in regime classification.
         vol_threshold : float
             Threshold for vol_score in regime classification.
+        mc_distribution : str
+            Monte Carlo noise distribution: "gaussian" or "student_t"
+        mc_degrees_of_freedom : float
+            Degrees of freedom for Student-t distribution (if mc_distribution="student_t")
         """
         self.fast_length = fast_length
         self.slow_length = slow_length
@@ -96,7 +102,12 @@ class FCDState:
         
         # Initialize components
         self.kalman = KalmanFilter(state_dim=3, obs_noise_scale=obs_noise_scale)
-        self.mc_engine = MonteCarloEngine(state_dim=3, n_paths=n_paths)
+        self.mc_engine = MonteCarloEngine(
+            state_dim=3, 
+            n_paths=n_paths,
+            distribution=mc_distribution,
+            degrees_of_freedom=mc_degrees_of_freedom
+        )
         self.diffusion_scale = diffusion_scale
         self.horizon = max(1, int(horizon))
         

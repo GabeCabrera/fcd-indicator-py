@@ -214,6 +214,9 @@ class ProbabilisticPredictor:
         """
         Compute directional bias for a specific component (e.g., momentum).
         
+        Computes probability of component increasing vs decreasing relative
+        to the weighted mean (not relative to zero).
+        
         Parameters:
         -----------
         samples : np.ndarray
@@ -226,23 +229,27 @@ class ProbabilisticPredictor:
         Returns:
         --------
         Dict containing:
-            - upward_prob: Probability of positive component
-            - downward_prob: Probability of negative component
+            - upward_prob: Probability of above-mean component values
+            - downward_prob: Probability of below-mean component values
             - expected_change: Weighted mean of component
         """
         component_values = samples[:, component_idx]
         
-        upward_mask = component_values > 0
-        downward_mask = component_values < 0
+        # Compute weighted mean
+        weighted_mean = np.average(component_values, weights=probabilities)
+        
+        # Check if values are above or below the weighted mean
+        # This gives us directional probability relative to expected value
+        upward_mask = component_values > weighted_mean
+        downward_mask = component_values < weighted_mean
         
         upward_prob = np.sum(probabilities[upward_mask])
         downward_prob = np.sum(probabilities[downward_mask])
-        expected_change = np.average(component_values, weights=probabilities)
         
         return {
             'upward_prob': upward_prob,
             'downward_prob': downward_prob,
-            'expected_change': expected_change,
+            'expected_change': weighted_mean,
             'bias': upward_prob - downward_prob
         }
     

@@ -15,7 +15,9 @@ class MonteCarloEngine:
     def __init__(self, 
                  state_dim: int = 3,
                  n_paths: int = 1000,
-                 random_seed: Optional[int] = None):
+                 random_seed: Optional[int] = None,
+                 distribution: str = "gaussian",
+                 degrees_of_freedom: float = 3.0):
         """
         Initialize Monte Carlo engine.
         
@@ -27,12 +29,32 @@ class MonteCarloEngine:
             Number of simulation paths
         random_seed : int, optional
             Random seed for reproducibility
+        distribution : str
+            Noise distribution: "gaussian" or "student_t"
+            - gaussian: Standard Gaussian (thin tails)
+            - student_t: Student-t (heavy/fat tails)
+        degrees_of_freedom : float
+            Degrees of freedom for Student-t distribution
+            - df=3: Very fat tails (extreme events common)
+            - df=5: Moderately fat tails
+            - df=10: Slightly fat tails
+            - df=30+: Approaches Gaussian
+            Only used when distribution="student_t"
         """
         self.state_dim = state_dim
         self.n_paths = n_paths
+        self.distribution = distribution
+        self.degrees_of_freedom = degrees_of_freedom
         
         if random_seed is not None:
             np.random.seed(random_seed)
+        
+        # Validate parameters
+        if distribution not in ["gaussian", "student_t"]:
+            raise ValueError(f"Unknown distribution: {distribution}. Use 'gaussian' or 'student_t'.")
+        
+        if distribution == "student_t" and degrees_of_freedom <= 2:
+            raise ValueError(f"degrees_of_freedom must be > 2 for Student-t (got {degrees_of_freedom})")
     
     def generate_paths(self,
                       current_state: np.ndarray,
@@ -64,11 +86,7 @@ class MonteCarloEngine:
             drift = np.zeros(self.state_dim)
         
         # Generate random shocks from covariance
-        shocks = MathPrimitives.gaussian_sample(
-            mean=np.zeros(self.state_dim),
-            cov=state_cov * diffusion_scale,
-            n_samples=self.n_paths
-        )
+        shocks = self._generate_shocks(state_cov * diffusion_scale)
         
         if transition_fn is None:
             # Default: random walk with drift
@@ -99,15 +117,64 @@ class MonteCarloEngine:
         paths = np.repeat(current_state[None, :], self.n_paths, axis=0)
         
         for _ in range(max(1, horizon)):
-            shocks = MathPrimitives.gaussian_sample(
-                mean=np.zeros(self.state_dim),
-                cov=state_cov * diffusion_scale,
-                n_samples=self.n_paths
-            )
+            shocks = self._generate_shocks(state_cov * diffusion_scale)
             proposals = np.array([transition_fn(path) for path in paths])
             paths = proposals + shocks
         
         return paths
+    
+    def _generate_shocks(self, cov: np.ndarray) -> np.ndarray:
+        """
+        Generate random shocks using configured distribution.
+        
+        Parameters:
+        -----------
+        cov : np.ndarray
+            Covariance matrix (shape: [state_dim, state_dim])
+            
+        Returns:
+        --------
+        np.ndarray : Random shocks (shape: [n_paths, state_dim])
+        """
+        if self.distribution == "gaussian":
+            # Standard Gaussian noise
+            return MathPrimitives.gaussian_sample(
+                mean=np.zeros(self.state_dim),
+                cov=cov,
+                n_samples=self.n_paths
+            )
+        
+        elif self.distribution == "student_t":
+            # Student-t has heavier tails than Gaussian
+            # Generate standard Student-t samples, then scale by covariance
+            
+            # 1. Generate independent Student-t samples
+            std_t_samples = np.random.standard_t(
+                df=self.degrees_of_freedom,
+                size=(self.n_paths, self.state_dim)
+            )
+            
+            # 2. Scale to match variance (Student-t variance = df/(df-2) for df>2)
+            # We want variance = 1 to match standard normal before covariance scaling
+            if self.degrees_of_freedom > 2:
+                scale_factor = np.sqrt((self.degrees_of_freedom - 2) / self.degrees_of_freedom)
+                std_t_samples = std_t_samples * scale_factor
+            
+            # 3. Apply covariance structure via Cholesky decomposition
+            try:
+                L = np.linalg.cholesky(cov)
+                shocks = std_t_samples @ L.T
+            except np.linalg.LinAlgError:
+                # Fallback to eigenvalue decomposition if Cholesky fails
+                eigenvalues, eigenvectors = np.linalg.eigh(cov)
+                eigenvalues = np.maximum(eigenvalues, 1e-8)  # Ensure positive
+                L = eigenvectors @ np.diag(np.sqrt(eigenvalues))
+                shocks = std_t_samples @ L.T
+            
+            return shocks
+        
+        else:
+            raise ValueError(f"Unknown distribution: {self.distribution}")
     
     def estimate_distribution(self, 
                             paths: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
